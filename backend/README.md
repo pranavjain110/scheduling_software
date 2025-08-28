@@ -112,6 +112,17 @@ The application implements the following SQLAlchemy models:
 - `GET /machines` - List all machines
 - `POST /machines` - Create a new machine
 
+### Production Schedules
+- `GET /production-schedules` - List all production schedules (supports filtering by date, machine_id, part_id)
+- `POST /production-schedules` - Create a new production schedule
+- `GET /production-schedules/<id>` - Get production schedule by ID
+- `PUT /production-schedules/<id>` - Update production schedule
+- `DELETE /production-schedules/<id>` - Delete production schedule
+- `PUT /production-schedules/<id>/status` - Update only the status of a production schedule (for sub-batch tracking)
+- `GET /production-schedules/by-date/<date>` - Get schedules for a specific date
+- `GET /production-schedules/by-machine/<machine_id>` - Get schedules for a specific machine (supports optional date filtering)
+- `GET /production-schedules/by-part/<part_id>` - Get schedules for a specific part
+
 ### Monthly Plans
 - `GET /monthly-plans` - List all monthly plans
 - `POST /monthly-plans` - Create a new monthly plan (supersedes existing plan for same company/part/month)
@@ -145,8 +156,10 @@ eligible_machines = operation.get_eligible_machines()
 
 ### Production Scheduling
 - 2 shifts per day, 2 slots per shift = 4 total slots per day
-- Supports sub-batch tracking
-- Status tracking for operations
+- Supports sub-batch tracking with unique sub_batch_id
+- Status tracking for operations: planned, in_progress, completed, delayed
+- Machine assignment and progress tracking per slot
+- Filtering capabilities by date, machine, and part
 - Conflict detection for double-booked slots
 
 ### Monthly Plans & Forecasts
@@ -164,6 +177,22 @@ python test_models.py
 ```
 
 This will create sample data and test all CRUD operations, relationships, and key functionality.
+
+Run the schedule API tests:
+
+```bash
+python test_schedule_api.py
+```
+
+This will test all schedule-related endpoints including supersede logic and error handling.
+
+Run the production schedule API tests:
+
+```bash
+python test_production_schedule_api.py
+```
+
+This will test all production schedule endpoints including sub-batch tracking, status updates, and filtering capabilities.
 
 Run the schedule API tests:
 

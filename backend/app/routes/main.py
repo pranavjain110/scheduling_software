@@ -421,6 +421,227 @@ def delete_forecast_plan(forecast_id):
     db.session.commit()
     return jsonify({"message": "Forecast plan deleted successfully"}), 200
 
+# Production Schedule CRUD operations
+@main_bp.route("/production-schedules", methods=["GET"])
+def get_production_schedules():
+    # Support filtering by date, machine_id, part_id
+    date_param = request.args.get('date')
+    machine_id_param = request.args.get('machine_id')
+    part_id_param = request.args.get('part_id')
+    
+    query = ProductionSchedule.query
+    
+    if date_param:
+        try:
+            from datetime import datetime
+            date_filter = datetime.fromisoformat(date_param).date()
+            query = query.filter_by(date=date_filter)
+        except ValueError:
+            return jsonify({"error": "Invalid date format. Use YYYY-MM-DD"}), 400
+    
+    if machine_id_param:
+        try:
+            machine_id = int(machine_id_param)
+            query = query.filter_by(machine_id=machine_id)
+        except ValueError:
+            return jsonify({"error": "Invalid machine_id format"}), 400
+    
+    if part_id_param:
+        try:
+            part_id = int(part_id_param)
+            query = query.filter_by(part_id=part_id)
+        except ValueError:
+            return jsonify({"error": "Invalid part_id format"}), 400
+    
+    schedules = query.all()
+    return jsonify([schedule.to_dict() for schedule in schedules])
+
+@main_bp.route("/production-schedules", methods=["POST"])
+def create_production_schedule():
+    data = request.get_json()
+    if not data or not all(key in data for key in ["date", "shift_number", "slot_number", "part_id", "operation_id", "machine_id", "quantity_scheduled"]):
+        return jsonify({"error": "Missing required fields: date, shift_number, slot_number, part_id, operation_id, machine_id, quantity_scheduled"}), 400
+    
+    # Validate part exists
+    part = Part.query.get(data["part_id"])
+    if not part:
+        return jsonify({"error": "Part not found"}), 404
+    
+    # Validate operation exists
+    operation = Operation.query.get(data["operation_id"])
+    if not operation:
+        return jsonify({"error": "Operation not found"}), 404
+    
+    # Validate machine exists
+    machine = Machine.query.get(data["machine_id"])
+    if not machine:
+        return jsonify({"error": "Machine not found"}), 404
+    
+    # Validate shift and slot numbers
+    if data["shift_number"] not in [1, 2]:
+        return jsonify({"error": "Shift number must be 1 or 2"}), 400
+    
+    if data["slot_number"] not in [1, 2]:
+        return jsonify({"error": "Slot number must be 1 or 2"}), 400
+    
+    # Parse date
+    try:
+        from datetime import datetime
+        schedule_date = datetime.fromisoformat(data["date"]).date()
+    except ValueError:
+        return jsonify({"error": "Invalid date format. Use YYYY-MM-DD"}), 400
+    
+    # Validate status if provided
+    if "status" in data and data["status"] not in ["planned", "in_progress", "completed", "delayed"]:
+        return jsonify({"error": "Status must be one of: planned, in_progress, completed, delayed"}), 400
+    
+    # Create production schedule
+    schedule = ProductionSchedule(
+        date=schedule_date,
+        shift_number=data["shift_number"],
+        slot_number=data["slot_number"],
+        part_id=data["part_id"],
+        operation_id=data["operation_id"],
+        machine_id=data["machine_id"],
+        quantity_scheduled=data["quantity_scheduled"],
+        sub_batch_id=data.get("sub_batch_id"),
+        status=data.get("status", "planned")
+    )
+    
+    db.session.add(schedule)
+    db.session.commit()
+    return jsonify(schedule.to_dict()), 201
+
+@main_bp.route("/production-schedules/<int:schedule_id>", methods=["GET"])
+def get_production_schedule(schedule_id):
+    schedule = ProductionSchedule.query.get_or_404(schedule_id)
+    return jsonify(schedule.to_dict())
+
+@main_bp.route("/production-schedules/<int:schedule_id>", methods=["PUT"])
+def update_production_schedule(schedule_id):
+    schedule = ProductionSchedule.query.get_or_404(schedule_id)
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+    
+    # Validate status if provided
+    if "status" in data and data["status"] not in ["planned", "in_progress", "completed", "delayed"]:
+        return jsonify({"error": "Status must be one of: planned, in_progress, completed, delayed"}), 400
+    
+    # Validate machine if being updated
+    if "machine_id" in data:
+        machine = Machine.query.get(data["machine_id"])
+        if not machine:
+            return jsonify({"error": "Machine not found"}), 404
+        schedule.machine_id = data["machine_id"]
+    
+    # Validate part if being updated
+    if "part_id" in data:
+        part = Part.query.get(data["part_id"])
+        if not part:
+            return jsonify({"error": "Part not found"}), 404
+        schedule.part_id = data["part_id"]
+    
+    # Validate operation if being updated
+    if "operation_id" in data:
+        operation = Operation.query.get(data["operation_id"])
+        if not operation:
+            return jsonify({"error": "Operation not found"}), 404
+        schedule.operation_id = data["operation_id"]
+    
+    # Update date if provided
+    if "date" in data:
+        try:
+            from datetime import datetime
+            schedule.date = datetime.fromisoformat(data["date"]).date()
+        except ValueError:
+            return jsonify({"error": "Invalid date format. Use YYYY-MM-DD"}), 400
+    
+    # Update shift and slot numbers if provided
+    if "shift_number" in data:
+        if data["shift_number"] not in [1, 2]:
+            return jsonify({"error": "Shift number must be 1 or 2"}), 400
+        schedule.shift_number = data["shift_number"]
+    
+    if "slot_number" in data:
+        if data["slot_number"] not in [1, 2]:
+            return jsonify({"error": "Slot number must be 1 or 2"}), 400
+        schedule.slot_number = data["slot_number"]
+    
+    # Update other fields
+    if "quantity_scheduled" in data:
+        schedule.quantity_scheduled = data["quantity_scheduled"]
+    if "sub_batch_id" in data:
+        schedule.sub_batch_id = data["sub_batch_id"]
+    if "status" in data:
+        schedule.status = data["status"]
+    
+    db.session.commit()
+    return jsonify(schedule.to_dict())
+
+@main_bp.route("/production-schedules/<int:schedule_id>", methods=["DELETE"])
+def delete_production_schedule(schedule_id):
+    schedule = ProductionSchedule.query.get_or_404(schedule_id)
+    db.session.delete(schedule)
+    db.session.commit()
+    return jsonify({"message": "Production schedule deleted successfully"}), 200
+
+@main_bp.route("/production-schedules/<int:schedule_id>/status", methods=["PUT"])
+def update_production_schedule_status(schedule_id):
+    """Update only the status of a production schedule for sub-batch tracking"""
+    schedule = ProductionSchedule.query.get_or_404(schedule_id)
+    data = request.get_json()
+    
+    if not data or "status" not in data:
+        return jsonify({"error": "Missing required field: status"}), 400
+    
+    # Validate status
+    if data["status"] not in ["planned", "in_progress", "completed", "delayed"]:
+        return jsonify({"error": "Status must be one of: planned, in_progress, completed, delayed"}), 400
+    
+    schedule.status = data["status"]
+    db.session.commit()
+    return jsonify(schedule.to_dict())
+
+# Specific filtering endpoints for day/machine/part queries
+@main_bp.route("/production-schedules/by-date/<date>", methods=["GET"])
+def get_schedules_by_date(date):
+    try:
+        from datetime import datetime
+        date_filter = datetime.fromisoformat(date).date()
+    except ValueError:
+        return jsonify({"error": "Invalid date format. Use YYYY-MM-DD"}), 400
+    
+    schedules = ProductionSchedule.query.filter_by(date=date_filter).all()
+    return jsonify([schedule.to_dict() for schedule in schedules])
+
+@main_bp.route("/production-schedules/by-machine/<int:machine_id>", methods=["GET"])
+def get_schedules_by_machine(machine_id):
+    # Validate machine exists
+    machine = Machine.query.get_or_404(machine_id)
+    
+    # Optional date filtering
+    date_param = request.args.get('date')
+    if date_param:
+        try:
+            from datetime import datetime
+            date_filter = datetime.fromisoformat(date_param).date()
+            schedules = ProductionSchedule.get_machine_schedule(machine_id, date_filter)
+        except ValueError:
+            return jsonify({"error": "Invalid date format. Use YYYY-MM-DD"}), 400
+    else:
+        schedules = ProductionSchedule.query.filter_by(machine_id=machine_id).all()
+    
+    return jsonify([schedule.to_dict() for schedule in schedules])
+
+@main_bp.route("/production-schedules/by-part/<int:part_id>", methods=["GET"])
+def get_schedules_by_part(part_id):
+    # Validate part exists
+    part = Part.query.get_or_404(part_id)
+    
+    schedules = ProductionSchedule.query.filter_by(part_id=part_id).all()
+    return jsonify([schedule.to_dict() for schedule in schedules])
+
 # Test route to verify database setup
 @main_bp.route("/test-db", methods=["GET"])
 def test_database():
@@ -432,6 +653,7 @@ def test_database():
         operations_count = Operation.query.count()
         monthly_plans_count = MonthlyPlan.query.count()
         forecast_plans_count = ForecastPlan.query.count()
+        production_schedules_count = ProductionSchedule.query.count()
         
         return jsonify({
             "database_status": "connected",
@@ -441,7 +663,8 @@ def test_database():
                 "parts": parts_count,
                 "operations": operations_count,
                 "monthly_plans": monthly_plans_count,
-                "forecast_plans": forecast_plans_count
+                "forecast_plans": forecast_plans_count,
+                "production_schedules": production_schedules_count
             }
         })
     except Exception as e:
