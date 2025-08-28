@@ -211,6 +211,216 @@ def remove_machine_from_operation(operation_id, machine_id):
     db.session.commit()
     return jsonify({"message": "Machine removed from operation successfully"}), 200
 
+# Monthly Plan CRUD operations
+@main_bp.route("/monthly-plans", methods=["GET"])
+def get_monthly_plans():
+    plans = MonthlyPlan.query.all()
+    return jsonify([plan.to_dict() for plan in plans])
+
+@main_bp.route("/monthly-plans", methods=["POST"])
+def create_monthly_plan():
+    data = request.get_json()
+    if not data or not all(key in data for key in ["part_id", "company_id", "month", "planned_quantity"]):
+        return jsonify({"error": "Missing required fields: part_id, company_id, month, planned_quantity"}), 400
+    
+    # Validate company exists
+    company = Company.query.get(data["company_id"])
+    if not company:
+        return jsonify({"error": "Company not found"}), 404
+    
+    # Validate part exists
+    part = Part.query.get(data["part_id"])
+    if not part:
+        return jsonify({"error": "Part not found"}), 404
+    
+    # Parse month date
+    try:
+        from datetime import datetime
+        month_date = datetime.fromisoformat(data["month"]).date()
+    except ValueError:
+        return jsonify({"error": "Invalid month format. Use YYYY-MM-DD"}), 400
+    
+    # Remove previous schedule for same company/part/month (supersede logic)
+    existing_plan = MonthlyPlan.query.filter_by(
+        part_id=data["part_id"],
+        company_id=data["company_id"],
+        month=month_date
+    ).first()
+    
+    if existing_plan:
+        db.session.delete(existing_plan)
+    
+    # Create new plan
+    plan = MonthlyPlan(
+        part_id=data["part_id"],
+        company_id=data["company_id"],
+        month=month_date,
+        planned_quantity=data["planned_quantity"]
+    )
+    
+    db.session.add(plan)
+    db.session.commit()
+    return jsonify(plan.to_dict()), 201
+
+@main_bp.route("/monthly-plans/<int:plan_id>", methods=["GET"])
+def get_monthly_plan(plan_id):
+    plan = MonthlyPlan.query.get_or_404(plan_id)
+    return jsonify(plan.to_dict())
+
+@main_bp.route("/monthly-plans/<int:plan_id>", methods=["PUT"])
+def update_monthly_plan(plan_id):
+    plan = MonthlyPlan.query.get_or_404(plan_id)
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+    
+    # Validate company if company_id is being updated
+    if "company_id" in data:
+        company = Company.query.get(data["company_id"])
+        if not company:
+            return jsonify({"error": "Company not found"}), 404
+        plan.company_id = data["company_id"]
+    
+    # Validate part if part_id is being updated
+    if "part_id" in data:
+        part = Part.query.get(data["part_id"])
+        if not part:
+            return jsonify({"error": "Part not found"}), 404
+        plan.part_id = data["part_id"]
+    
+    # Update month if provided
+    if "month" in data:
+        try:
+            from datetime import datetime
+            plan.month = datetime.fromisoformat(data["month"]).date()
+        except ValueError:
+            return jsonify({"error": "Invalid month format. Use YYYY-MM-DD"}), 400
+    
+    # Update quantity if provided
+    if "planned_quantity" in data:
+        plan.planned_quantity = data["planned_quantity"]
+    
+    db.session.commit()
+    return jsonify(plan.to_dict())
+
+@main_bp.route("/monthly-plans/<int:plan_id>", methods=["DELETE"])
+def delete_monthly_plan(plan_id):
+    plan = MonthlyPlan.query.get_or_404(plan_id)
+    db.session.delete(plan)
+    db.session.commit()
+    return jsonify({"message": "Monthly plan deleted successfully"}), 200
+
+# Forecast Plan CRUD operations
+@main_bp.route("/forecast-plans", methods=["GET"])
+def get_forecast_plans():
+    plans = ForecastPlan.query.all()
+    return jsonify([plan.to_dict() for plan in plans])
+
+@main_bp.route("/forecast-plans", methods=["POST"])
+def create_forecast_plan():
+    data = request.get_json()
+    if not data or not all(key in data for key in ["part_id", "company_id", "month", "week", "forecasted_quantity"]):
+        return jsonify({"error": "Missing required fields: part_id, company_id, month, week, forecasted_quantity"}), 400
+    
+    # Validate company exists
+    company = Company.query.get(data["company_id"])
+    if not company:
+        return jsonify({"error": "Company not found"}), 404
+    
+    # Validate part exists
+    part = Part.query.get(data["part_id"])
+    if not part:
+        return jsonify({"error": "Part not found"}), 404
+    
+    # Validate week number
+    if not (1 <= data["week"] <= 4):
+        return jsonify({"error": "Week number must be between 1 and 4"}), 400
+    
+    # Parse month date
+    try:
+        from datetime import datetime
+        month_date = datetime.fromisoformat(data["month"]).date()
+    except ValueError:
+        return jsonify({"error": "Invalid month format. Use YYYY-MM-DD"}), 400
+    
+    # Remove previous forecast for same company/part/month/week (supersede logic)
+    existing_forecast = ForecastPlan.query.filter_by(
+        part_id=data["part_id"],
+        company_id=data["company_id"],
+        month=month_date,
+        week=data["week"]
+    ).first()
+    
+    if existing_forecast:
+        db.session.delete(existing_forecast)
+    
+    # Create new forecast
+    forecast = ForecastPlan(
+        part_id=data["part_id"],
+        company_id=data["company_id"],
+        month=month_date,
+        week=data["week"],
+        forecasted_quantity=data["forecasted_quantity"]
+    )
+    
+    db.session.add(forecast)
+    db.session.commit()
+    return jsonify(forecast.to_dict()), 201
+
+@main_bp.route("/forecast-plans/<int:forecast_id>", methods=["GET"])
+def get_forecast_plan(forecast_id):
+    forecast = ForecastPlan.query.get_or_404(forecast_id)
+    return jsonify(forecast.to_dict())
+
+@main_bp.route("/forecast-plans/<int:forecast_id>", methods=["PUT"])
+def update_forecast_plan(forecast_id):
+    forecast = ForecastPlan.query.get_or_404(forecast_id)
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+    
+    # Validate company if company_id is being updated
+    if "company_id" in data:
+        company = Company.query.get(data["company_id"])
+        if not company:
+            return jsonify({"error": "Company not found"}), 404
+        forecast.company_id = data["company_id"]
+    
+    # Validate part if part_id is being updated
+    if "part_id" in data:
+        part = Part.query.get(data["part_id"])
+        if not part:
+            return jsonify({"error": "Part not found"}), 404
+        forecast.part_id = data["part_id"]
+    
+    # Update month if provided
+    if "month" in data:
+        try:
+            from datetime import datetime
+            forecast.month = datetime.fromisoformat(data["month"]).date()
+        except ValueError:
+            return jsonify({"error": "Invalid month format. Use YYYY-MM-DD"}), 400
+    
+    # Update week if provided
+    if "week" in data:
+        if not (1 <= data["week"] <= 4):
+            return jsonify({"error": "Week number must be between 1 and 4"}), 400
+        forecast.week = data["week"]
+    
+    # Update quantity if provided
+    if "forecasted_quantity" in data:
+        forecast.forecasted_quantity = data["forecasted_quantity"]
+    
+    db.session.commit()
+    return jsonify(forecast.to_dict())
+
+@main_bp.route("/forecast-plans/<int:forecast_id>", methods=["DELETE"])
+def delete_forecast_plan(forecast_id):
+    forecast = ForecastPlan.query.get_or_404(forecast_id)
+    db.session.delete(forecast)
+    db.session.commit()
+    return jsonify({"message": "Forecast plan deleted successfully"}), 200
+
 # Test route to verify database setup
 @main_bp.route("/test-db", methods=["GET"])
 def test_database():
@@ -220,6 +430,8 @@ def test_database():
         machines_count = Machine.query.count()
         parts_count = Part.query.count()
         operations_count = Operation.query.count()
+        monthly_plans_count = MonthlyPlan.query.count()
+        forecast_plans_count = ForecastPlan.query.count()
         
         return jsonify({
             "database_status": "connected",
@@ -227,7 +439,9 @@ def test_database():
                 "companies": companies_count,
                 "machines": machines_count,
                 "parts": parts_count,
-                "operations": operations_count
+                "operations": operations_count,
+                "monthly_plans": monthly_plans_count,
+                "forecast_plans": forecast_plans_count
             }
         })
     except Exception as e:
