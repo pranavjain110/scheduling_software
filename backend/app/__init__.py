@@ -1,5 +1,6 @@
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
+from flask_cors import CORS
 import os
 
 db = SQLAlchemy()
@@ -15,6 +16,7 @@ def create_app():
     
     # Initialize extensions
     db.init_app(app)
+    CORS(app)  # Enable CORS for all routes
     
     # Register blueprints
     from app.routes.main import main_bp
