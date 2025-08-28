@@ -112,6 +112,20 @@ The application implements the following SQLAlchemy models:
 - `GET /machines` - List all machines
 - `POST /machines` - Create a new machine
 
+### Monthly Plans
+- `GET /monthly-plans` - List all monthly plans
+- `POST /monthly-plans` - Create a new monthly plan (supersedes existing plan for same company/part/month)
+- `GET /monthly-plans/<id>` - Get monthly plan by ID
+- `PUT /monthly-plans/<id>` - Update monthly plan
+- `DELETE /monthly-plans/<id>` - Delete monthly plan
+
+### Forecast Plans
+- `GET /forecast-plans` - List all forecast plans
+- `POST /forecast-plans` - Create a new forecast plan (supersedes existing forecast for same company/part/month/week)
+- `GET /forecast-plans/<id>` - Get forecast plan by ID
+- `PUT /forecast-plans/<id>` - Update forecast plan
+- `DELETE /forecast-plans/<id>` - Delete forecast plan
+
 ### Testing
 - `GET /test-db` - Test database connectivity and show table counts
 
@@ -135,6 +149,12 @@ eligible_machines = operation.get_eligible_machines()
 - Status tracking for operations
 - Conflict detection for double-booked slots
 
+### Monthly Plans & Forecasts
+- **Supersede Logic**: New schedules automatically replace previous schedules for the same company/part/month
+- **Forecast Support**: Supports 1-2 months of forecast data with weekly granularity (weeks 1-4)
+- **Data Separation**: Monthly plans and forecast plans are stored in separate tables
+- **Date Format**: All dates should be provided in ISO format (YYYY-MM-DD)
+
 ## Testing
 
 Run the test script to validate all models:
@@ -144,6 +164,14 @@ python test_models.py
 ```
 
 This will create sample data and test all CRUD operations, relationships, and key functionality.
+
+Run the schedule API tests:
+
+```bash
+python test_schedule_api.py
+```
+
+This will test all schedule-related endpoints including supersede logic and error handling.
 
 ## Database
 
