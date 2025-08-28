@@ -495,7 +495,15 @@ def create_production_schedule():
     if "status" in data and data["status"] not in ["planned", "in_progress", "completed", "delayed"]:
         return jsonify({"error": "Status must be one of: planned, in_progress, completed, delayed"}), 400
     
-    # Create production schedule
+    # Check for conflicts before creating the schedule
+    existing_conflicts = ProductionSchedule.get_slot_conflicts(
+        data["machine_id"], 
+        schedule_date, 
+        data["shift_number"], 
+        data["slot_number"]
+    )
+    
+    # Create production schedule (allow double-booking but warn about conflicts)
     schedule = ProductionSchedule(
         date=schedule_date,
         shift_number=data["shift_number"],
@@ -510,7 +518,23 @@ def create_production_schedule():
     
     db.session.add(schedule)
     db.session.commit()
-    return jsonify(schedule.to_dict()), 201
+    
+    # Prepare response with conflict warnings if any
+    response_data = schedule.to_dict()
+    
+    if existing_conflicts:
+        response_data["warnings"] = {
+            "conflicts_detected": True,
+            "message": "Schedule created successfully, but conflicts detected in this slot.",
+            "conflicts": existing_conflicts
+        }
+        return jsonify(response_data), 201  # Created with warnings
+    else:
+        response_data["warnings"] = {
+            "conflicts_detected": False,
+            "message": "Schedule created successfully with no conflicts."
+        }
+        return jsonify(response_data), 201
 
 @main_bp.route("/production-schedules/<int:schedule_id>", methods=["GET"])
 def get_production_schedule(schedule_id):
@@ -576,8 +600,33 @@ def update_production_schedule(schedule_id):
     if "status" in data:
         schedule.status = data["status"]
     
+    # Check for conflicts after potential slot/machine changes (excluding current schedule)
+    conflicts = ProductionSchedule.get_slot_conflicts(
+        schedule.machine_id, 
+        schedule.date, 
+        schedule.shift_number, 
+        schedule.slot_number,
+        exclude_schedule_id=schedule_id
+    )
+    
     db.session.commit()
-    return jsonify(schedule.to_dict())
+    
+    # Prepare response with conflict warnings if any
+    response_data = schedule.to_dict()
+    
+    if conflicts:
+        response_data["warnings"] = {
+            "conflicts_detected": True,
+            "message": "Schedule updated successfully, but conflicts detected in this slot.",
+            "conflicts": conflicts
+        }
+    else:
+        response_data["warnings"] = {
+            "conflicts_detected": False,
+            "message": "Schedule updated successfully with no conflicts."
+        }
+    
+    return jsonify(response_data)
 
 @main_bp.route("/production-schedules/<int:schedule_id>", methods=["DELETE"])
 def delete_production_schedule(schedule_id):
@@ -641,6 +690,104 @@ def get_schedules_by_part(part_id):
     
     schedules = ProductionSchedule.query.filter_by(part_id=part_id).all()
     return jsonify([schedule.to_dict() for schedule in schedules])
+
+# Conflict detection endpoints
+@main_bp.route("/production-schedules/conflicts/by-date/<date>", methods=["GET"])
+def get_conflicts_by_date(date):
+    """Get all scheduling conflicts for a specific date"""
+    try:
+        from datetime import datetime
+        date_filter = datetime.fromisoformat(date).date()
+    except ValueError:
+        return jsonify({"error": "Invalid date format. Use YYYY-MM-DD"}), 400
+    
+    conflicts = ProductionSchedule.get_date_conflicts(date_filter)
+    
+    return jsonify({
+        "date": date,
+        "conflicts_count": len(conflicts),
+        "conflicts": conflicts
+    })
+
+@main_bp.route("/production-schedules/conflicts/by-machine/<int:machine_id>", methods=["GET"])
+def get_conflicts_by_machine(machine_id):
+    """Get all scheduling conflicts for a specific machine"""
+    # Validate machine exists
+    machine = Machine.query.get_or_404(machine_id)
+    
+    # Optional date filtering
+    date_param = request.args.get('date')
+    date_filter = None
+    
+    if date_param:
+        try:
+            from datetime import datetime
+            date_filter = datetime.fromisoformat(date_param).date()
+        except ValueError:
+            return jsonify({"error": "Invalid date format. Use YYYY-MM-DD"}), 400
+    
+    conflicts = ProductionSchedule.get_machine_conflicts(machine_id, date_filter)
+    
+    response_data = {
+        "machine_id": machine_id,
+        "conflicts_count": len(conflicts),
+        "conflicts": conflicts
+    }
+    
+    if date_filter:
+        response_data["date"] = date_param
+    
+    return jsonify(response_data)
+
+@main_bp.route("/production-schedules/conflicts/check-slot", methods=["POST"])
+def check_slot_conflicts():
+    """Check for conflicts in a specific slot before scheduling"""
+    data = request.get_json()
+    
+    if not data or not all(key in data for key in ["machine_id", "date", "shift_number", "slot_number"]):
+        return jsonify({"error": "Missing required fields: machine_id, date, shift_number, slot_number"}), 400
+    
+    # Validate machine exists
+    machine = Machine.query.get_or_404(data["machine_id"])
+    
+    # Validate shift and slot numbers
+    if data["shift_number"] not in [1, 2]:
+        return jsonify({"error": "Shift number must be 1 or 2"}), 400
+    
+    if data["slot_number"] not in [1, 2]:
+        return jsonify({"error": "Slot number must be 1 or 2"}), 400
+    
+    # Parse date
+    try:
+        from datetime import datetime
+        date_filter = datetime.fromisoformat(data["date"]).date()
+    except ValueError:
+        return jsonify({"error": "Invalid date format. Use YYYY-MM-DD"}), 400
+    
+    # Check for conflicts
+    exclude_schedule_id = data.get("exclude_schedule_id")  # For update operations
+    conflicts = ProductionSchedule.get_slot_conflicts(
+        data["machine_id"], 
+        date_filter, 
+        data["shift_number"], 
+        data["slot_number"],
+        exclude_schedule_id
+    )
+    
+    if conflicts:
+        return jsonify({
+            "has_conflicts": True,
+            "conflicts_count": len(conflicts),
+            "conflicts": conflicts,
+            "warning": "This slot is already occupied. Double-booking will create a conflict."
+        })
+    else:
+        return jsonify({
+            "has_conflicts": False,
+            "conflicts_count": 0,
+            "conflicts": [],
+            "message": "Slot is available for scheduling."
+        })
 
 # Test route to verify database setup
 @main_bp.route("/test-db", methods=["GET"])
