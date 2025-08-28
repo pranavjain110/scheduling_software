@@ -90,13 +90,27 @@ The application implements the following SQLAlchemy models:
 - `PUT /companies/<id>` - Update company
 - `DELETE /companies/<id>` - Delete company
 
+### Parts
+- `GET /parts` - List all parts
+- `POST /parts` - Create a new part
+- `GET /parts/<id>` - Get part by ID
+- `PUT /parts/<id>` - Update part
+- `DELETE /parts/<id>` - Delete part
+- `GET /parts/<id>/operations` - Get operations for a specific part
+
+### Operations
+- `GET /operations` - List all operations
+- `POST /operations` - Create a new operation
+- `GET /operations/<id>` - Get operation by ID
+- `PUT /operations/<id>` - Update operation
+- `DELETE /operations/<id>` - Delete operation
+- `GET /operations/<operation_id>/eligible-machines` - Get eligible machines for an operation
+- `POST /operations/<operation_id>/machines/<machine_id>` - Add machine as eligible for operation
+- `DELETE /operations/<operation_id>/machines/<machine_id>` - Remove machine from operation
+
 ### Machines
 - `GET /machines` - List all machines
 - `POST /machines` - Create a new machine
-
-### Operations
-- `GET /operations/<operation_id>/eligible-machines` - Get eligible machines for an operation
-- `POST /operations/<operation_id>/machines/<machine_id>` - Add machine as eligible for operation
 
 ### Testing
 - `GET /test-db` - Test database connectivity and show table counts
