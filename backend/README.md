@@ -114,14 +114,19 @@ The application implements the following SQLAlchemy models:
 
 ### Production Schedules
 - `GET /production-schedules` - List all production schedules (supports filtering by date, machine_id, part_id)
-- `POST /production-schedules` - Create a new production schedule
+- `POST /production-schedules` - Create a new production schedule (supports temporary double-booking with conflict warnings)
 - `GET /production-schedules/<id>` - Get production schedule by ID
-- `PUT /production-schedules/<id>` - Update production schedule
+- `PUT /production-schedules/<id>` - Update production schedule (with conflict detection)
 - `DELETE /production-schedules/<id>` - Delete production schedule
 - `PUT /production-schedules/<id>/status` - Update only the status of a production schedule (for sub-batch tracking)
 - `GET /production-schedules/by-date/<date>` - Get schedules for a specific date
 - `GET /production-schedules/by-machine/<machine_id>` - Get schedules for a specific machine (supports optional date filtering)
 - `GET /production-schedules/by-part/<part_id>` - Get schedules for a specific part
+
+### Conflict Detection
+- `GET /production-schedules/conflicts/by-date/<date>` - Get all scheduling conflicts for a specific date
+- `GET /production-schedules/conflicts/by-machine/<machine_id>` - Get all scheduling conflicts for a specific machine (supports optional date filtering)
+- `POST /production-schedules/conflicts/check-slot` - Check for conflicts in a specific slot before scheduling
 
 ### Monthly Plans
 - `GET /monthly-plans` - List all monthly plans
@@ -160,13 +165,28 @@ eligible_machines = operation.get_eligible_machines()
 - Status tracking for operations: planned, in_progress, completed, delayed
 - Machine assignment and progress tracking per slot
 - Filtering capabilities by date, machine, and part
-- Conflict detection for double-booked slots
+- **Conflict detection for double-booked slots** - allows temporary double-booking with warnings
+- **Detailed conflict reporting** - provides JSON responses with conflicting slot and operation information
 
 ### Monthly Plans & Forecasts
 - **Supersede Logic**: New schedules automatically replace previous schedules for the same company/part/month
 - **Forecast Support**: Supports 1-2 months of forecast data with weekly granularity (weeks 1-4)
 - **Data Separation**: Monthly plans and forecast plans are stored in separate tables
 - **Date Format**: All dates should be provided in ISO format (YYYY-MM-DD)
+
+### Conflict Detection Features
+- **Temporary Double-booking**: Allows scheduling multiple operations in the same machine slot with warnings
+- **Conflict Detection**: Automatically detects overlapping operations on the same machine/slot
+- **Detailed Conflict Information**: Returns JSON with conflicting schedules including:
+  - Schedule IDs of conflicting operations
+  - Part and operation details for each conflict
+  - Slot information (machine, date, shift, slot)
+  - Warning messages for conflict resolution
+- **Flexible Conflict Queries**: 
+  - Get conflicts by specific date across all machines
+  - Get conflicts by specific machine with optional date filtering
+  - Check individual slots for conflicts before scheduling
+- **Update Conflict Detection**: Validates conflicts when updating existing schedules
 
 ## Testing
 

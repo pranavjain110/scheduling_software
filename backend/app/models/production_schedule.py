@@ -54,3 +54,129 @@ class ProductionSchedule(db.Model):
             slot_number=slot_number
         ).first()
         return existing is None
+    
+    @classmethod
+    def get_slot_conflicts(cls, machine_id, date, shift_number, slot_number, exclude_schedule_id=None):
+        """Get detailed information about conflicts for a specific slot"""
+        query = cls.query.filter_by(
+            machine_id=machine_id,
+            date=date,
+            shift_number=shift_number,
+            slot_number=slot_number
+        )
+        
+        # Exclude a specific schedule ID when checking for conflicts (useful for updates)
+        if exclude_schedule_id:
+            query = query.filter(cls.schedule_id != exclude_schedule_id)
+        
+        conflicting_schedules = query.all()
+        
+        if not conflicting_schedules:
+            return None
+        
+        # Return detailed conflict information
+        conflicts = []
+        for schedule in conflicting_schedules:
+            conflicts.append({
+                'schedule_id': schedule.schedule_id,
+                'part_id': schedule.part_id,
+                'operation_id': schedule.operation_id,
+                'quantity_scheduled': schedule.quantity_scheduled,
+                'sub_batch_id': schedule.sub_batch_id,
+                'status': schedule.status,
+                'slot_info': {
+                    'machine_id': machine_id,
+                    'date': date.isoformat() if hasattr(date, 'isoformat') else str(date),
+                    'shift_number': shift_number,
+                    'slot_number': slot_number
+                }
+            })
+        
+        return conflicts
+    
+    @classmethod
+    def get_machine_conflicts(cls, machine_id, date=None):
+        """Get all conflicts for a specific machine on a specific date or all dates"""
+        query = cls.query.filter_by(machine_id=machine_id)
+        
+        if date:
+            query = query.filter_by(date=date)
+        
+        schedules = query.all()
+        
+        # Group schedules by (date, shift_number, slot_number) to find conflicts
+        slot_groups = {}
+        for schedule in schedules:
+            key = (schedule.date, schedule.shift_number, schedule.slot_number)
+            if key not in slot_groups:
+                slot_groups[key] = []
+            slot_groups[key].append(schedule)
+        
+        # Find slots with more than one schedule (conflicts)
+        conflicts = []
+        for (date, shift_number, slot_number), slot_schedules in slot_groups.items():
+            if len(slot_schedules) > 1:
+                conflict_info = {
+                    'slot_info': {
+                        'machine_id': machine_id,
+                        'date': date.isoformat() if hasattr(date, 'isoformat') else str(date),
+                        'shift_number': shift_number,
+                        'slot_number': slot_number
+                    },
+                    'conflicting_schedules': []
+                }
+                
+                for schedule in slot_schedules:
+                    conflict_info['conflicting_schedules'].append({
+                        'schedule_id': schedule.schedule_id,
+                        'part_id': schedule.part_id,
+                        'operation_id': schedule.operation_id,
+                        'quantity_scheduled': schedule.quantity_scheduled,
+                        'sub_batch_id': schedule.sub_batch_id,
+                        'status': schedule.status
+                    })
+                
+                conflicts.append(conflict_info)
+        
+        return conflicts
+    
+    @classmethod
+    def get_date_conflicts(cls, date):
+        """Get all conflicts for a specific date across all machines"""
+        schedules = cls.query.filter_by(date=date).all()
+        
+        # Group schedules by (machine_id, shift_number, slot_number) to find conflicts
+        slot_groups = {}
+        for schedule in schedules:
+            key = (schedule.machine_id, schedule.shift_number, schedule.slot_number)
+            if key not in slot_groups:
+                slot_groups[key] = []
+            slot_groups[key].append(schedule)
+        
+        # Find slots with more than one schedule (conflicts)
+        conflicts = []
+        for (machine_id, shift_number, slot_number), slot_schedules in slot_groups.items():
+            if len(slot_schedules) > 1:
+                conflict_info = {
+                    'slot_info': {
+                        'machine_id': machine_id,
+                        'date': date.isoformat() if hasattr(date, 'isoformat') else str(date),
+                        'shift_number': shift_number,
+                        'slot_number': slot_number
+                    },
+                    'conflicting_schedules': []
+                }
+                
+                for schedule in slot_schedules:
+                    conflict_info['conflicting_schedules'].append({
+                        'schedule_id': schedule.schedule_id,
+                        'part_id': schedule.part_id,
+                        'operation_id': schedule.operation_id,
+                        'quantity_scheduled': schedule.quantity_scheduled,
+                        'sub_batch_id': schedule.sub_batch_id,
+                        'status': schedule.status
+                    })
+                
+                conflicts.append(conflict_info)
+        
+        return conflicts
