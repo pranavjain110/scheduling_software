@@ -20,11 +20,53 @@ const DayColumn = ({
     s.date === date && s.part_id === part.part_id
   );
 
+  // Get ALL schedules for this date (not filtered by part) for conflict detection
+  const allDaySchedules = schedules.filter(s => s.date === date);
+
   // Get schedule for a specific slot
   const getScheduleForSlot = (shift, slot) => {
     return daySchedules.find(s => 
       s.shift_number === shift && s.slot_number === slot
     );
+  };
+
+  // Get all schedules for a specific slot (for conflict detection across all parts)
+  const getSchedulesForSlot = (shift, slot) => {
+    return allDaySchedules.filter(s => 
+      s.shift_number === shift && s.slot_number === slot
+    );
+  };
+
+  // Get conflict information for a specific slot
+  const getSlotConflictInfo = (shift, slot) => {
+    const slotSchedules = getSchedulesForSlot(shift, slot);
+    
+    // Group by machine to detect conflicts
+    const machineGroups = {};
+    slotSchedules.forEach(schedule => {
+      const machineId = schedule.machine_id;
+      if (!machineGroups[machineId]) {
+        machineGroups[machineId] = [];
+      }
+      machineGroups[machineId].push(schedule);
+    });
+
+    // Find conflicts (multiple schedules on same machine)
+    const conflicts = [];
+    Object.entries(machineGroups).forEach(([machineId, schedules]) => {
+      if (schedules.length > 1) {
+        conflicts.push({
+          machineId: parseInt(machineId),
+          schedules: schedules
+        });
+      }
+    });
+
+    return {
+      hasConflicts: conflicts.length > 0,
+      conflicts: conflicts,
+      totalSchedules: slotSchedules.length
+    };
   };
 
   // Check if it's a weekend
@@ -52,6 +94,7 @@ const DayColumn = ({
               machines={machines}
               operations={operations}
               schedule={getScheduleForSlot(1, 1)}
+              conflictInfo={getSlotConflictInfo(1, 1)}
               onScheduleUpdate={onScheduleUpdate}
               onScheduleCreate={onScheduleCreate}
               onScheduleDelete={onScheduleDelete}
@@ -64,6 +107,7 @@ const DayColumn = ({
               machines={machines}
               operations={operations}
               schedule={getScheduleForSlot(1, 2)}
+              conflictInfo={getSlotConflictInfo(1, 2)}
               onScheduleUpdate={onScheduleUpdate}
               onScheduleCreate={onScheduleCreate}
               onScheduleDelete={onScheduleDelete}
@@ -83,6 +127,7 @@ const DayColumn = ({
               machines={machines}
               operations={operations}
               schedule={getScheduleForSlot(2, 1)}
+              conflictInfo={getSlotConflictInfo(2, 1)}
               onScheduleUpdate={onScheduleUpdate}
               onScheduleCreate={onScheduleCreate}
               onScheduleDelete={onScheduleDelete}
@@ -95,6 +140,7 @@ const DayColumn = ({
               machines={machines}
               operations={operations}
               schedule={getScheduleForSlot(2, 2)}
+              conflictInfo={getSlotConflictInfo(2, 2)}
               onScheduleUpdate={onScheduleUpdate}
               onScheduleCreate={onScheduleCreate}
               onScheduleDelete={onScheduleDelete}

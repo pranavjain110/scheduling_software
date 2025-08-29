@@ -8,6 +8,7 @@ const SlotCell = ({
   machines, 
   operations, 
   schedule,
+  conflictInfo,
   onScheduleUpdate,
   onScheduleCreate,
   onScheduleDelete 
@@ -17,8 +18,10 @@ const SlotCell = ({
   const [quantity, setQuantity] = useState(schedule?.quantity_scheduled || '');
   const [subBatchId, setSubBatchId] = useState(schedule?.sub_batch_id || '');
   const [isSelected, setIsSelected] = useState(false);
-  const [hasConflict, setHasConflict] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Use conflictInfo to determine if slot has conflicts
+  const hasConflict = conflictInfo?.hasConflicts || false;
 
   // Filter operations for this specific part
   const partOperations = operations.filter(op => op.part_id === part.part_id);
@@ -117,7 +120,7 @@ const SlotCell = ({
     let baseStyle = "border rounded p-1 m-0.5 text-xs min-h-[80px] relative";
     
     if (hasConflict) {
-      baseStyle += " border-red-500 bg-red-50";
+      baseStyle += " border-red-500 bg-red-100";
     } else if (selectedMachine) {
       baseStyle += " border-green-500 bg-green-50";
     } else {
@@ -133,6 +136,25 @@ const SlotCell = ({
     }
 
     return baseStyle;
+  };
+
+  // Generate conflict tooltip content
+  const getConflictTooltipContent = () => {
+    if (!hasConflict || !conflictInfo?.conflicts) return '';
+    
+    const conflictLines = [];
+    conflictInfo.conflicts.forEach((conflict, index) => {
+      const machine = machines.find(m => m.machine_id === conflict.machineId);
+      conflictLines.push(`Machine: ${machine?.name || conflict.machineId}`);
+      
+      conflict.schedules.forEach((schedule, schedIndex) => {
+        const operation = operations.find(op => op.operation_id === schedule.operation_id);
+        const conflictPart = schedule.part_id === part.part_id ? part : { name: `Part ${schedule.part_id}` };
+        conflictLines.push(`  Schedule ${schedIndex + 1}: ${conflictPart.name} - Operation ${operation?.sequence_number || schedule.operation_id} (${schedule.quantity_scheduled} qty)`);
+      });
+    });
+    
+    return `Scheduling Conflict:\n${conflictLines.join('\n')}`;
   };
 
   const selectedMachineData = machines.find(m => m.machine_id === parseInt(selectedMachine));
@@ -227,7 +249,10 @@ const SlotCell = ({
 
       {/* Conflict indicator */}
       {hasConflict && (
-        <div className="absolute top-0 right-1 text-red-500 text-xs" title="Conflict detected">
+        <div 
+          className="absolute top-0 right-1 text-red-500 text-xs cursor-help" 
+          title={getConflictTooltipContent()}
+        >
           ⚠️
         </div>
       )}
