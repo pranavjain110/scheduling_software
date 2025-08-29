@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import ProductionGrid from './ProductionGrid';
 import GanttChart from './GanttChart';
+import Dashboard from './Dashboard';
 import apiService from '../services/api';
 
 const ProductionPlanner = () => {
@@ -144,6 +145,16 @@ const ProductionPlanner = () => {
             >
               📈 Gantt Chart
             </button>
+            <button
+              onClick={() => setCurrentView('dashboard')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                currentView === 'dashboard'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              📋 Dashboard
+            </button>
           </div>
         </div>
         
@@ -194,11 +205,18 @@ const ProductionPlanner = () => {
             onDateRangeChange={handleDateRangeChange}
             loadData={loadData}
           />
-        ) : (
+        ) : currentView === 'gantt' ? (
           <GanttChart
             parts={parts}
             machines={machines}
             operations={operations}
+            schedules={schedules}
+            selectedDateRange={selectedDateRange}
+          />
+        ) : (
+          <Dashboard
+            parts={parts}
+            machines={machines}
             schedules={schedules}
             selectedDateRange={selectedDateRange}
           />
