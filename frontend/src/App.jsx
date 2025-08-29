@@ -1,9 +1,9 @@
-import ProductionGrid from './components/ProductionGrid'
+import ProductionPlanner from './components/ProductionPlanner'
 
 function App() {
   return (
     <div className="min-h-screen bg-gray-100">
-      <ProductionGrid />
+      <ProductionPlanner />
     </div>
   )
 }
