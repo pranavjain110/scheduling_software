@@ -83,6 +83,43 @@ class ApiService {
   async getCompanies() {
     return this.makeRequest('/companies');
   }
+
+  // Monthly Plans API
+  async getMonthlyPlans() {
+    return this.makeRequest('/monthly-plans');
+  }
+
+  // Forecast Plans API
+  async getForecastPlans() {
+    return this.makeRequest('/forecast-plans');
+  }
+
+  // Dashboard specific APIs
+  async getConflictsByDate(date) {
+    return this.makeRequest(`/production-schedules/conflicts/by-date/${date}`);
+  }
+
+  async getConflictsByMachine(machineId, date = null) {
+    const url = date 
+      ? `/production-schedules/conflicts/by-machine/${machineId}?date=${date}`
+      : `/production-schedules/conflicts/by-machine/${machineId}`;
+    return this.makeRequest(url);
+  }
+
+  async getSchedulesByDate(date) {
+    return this.makeRequest(`/production-schedules/by-date/${date}`);
+  }
+
+  async getSchedulesByMachine(machineId, date = null) {
+    const url = date 
+      ? `/production-schedules/by-machine/${machineId}?date=${date}`
+      : `/production-schedules/by-machine/${machineId}`;
+    return this.makeRequest(url);
+  }
+
+  async getSchedulesByPart(partId) {
+    return this.makeRequest(`/production-schedules/by-part/${partId}`);
+  }
 }
 
 // Export a singleton instance
